@@ -1,7 +1,10 @@
 from typing import Dict, List
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
 import mysql.connector
 from mysql.connector import Error
+import schedule
+import time
 from altru_client import AltruAPIClient
 
 class DataSyncService:
@@ -112,3 +115,25 @@ class DataSyncService:
             if conn.is_connected():
                 cursor.close()
                 conn.close()
+
+def daily_sync():
+    """Function to perform daily synchronization"""
+    service = DataSyncService()
+    today = datetime.now().strftime('%Y-%m-%d')
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    print(f"Syncing customers and events for {today}")
+    # Example: Syncing a customer with a specific Altru ID
+    altru_id = "example_altru_id"
+    service.sync_customer(altru_id)
+    
+    # Syncing events for today and tomorrow
+    service.sync_events(today, tomorrow)
+
+# Schedule the sync job to run every 24 hours
+schedule.every(24).hours.do(daily_sync)
+
+print("Starting daily sync service...")
+while True:
+    schedule.run_pending()
+    time.sleep(1)
