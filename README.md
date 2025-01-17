@@ -31,9 +31,9 @@ To use this project, follow these steps:
 1. [Explain how to run your project]
 
 ## Features
-- Feature 1: [Description of feature 1]
-- Feature 2: [Description of feature 2]
-- Feature 3: [Description of feature 3]
+- Feature 1: Audit Trail And Logs
+- Feature 2: Synchronisation Periodic every Day
+- Feature 3: Query Compute
 
 ## Contributing
 Contributions are welcome! Please follow these steps to contribute:
