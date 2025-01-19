@@ -7,6 +7,7 @@ This project is a capstone for the Hagley Museum, implemented entirely in Python
 - [Installation](#installation)
 - [Usage](#usage)
 - [Features](#features)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
@@ -34,6 +35,26 @@ To use this project, follow these steps:
 - Feature 1: Audit Trail And Logs
 - Feature 2: Synchronisation Periodic every Day
 - Feature 3: Query Compute
+
+## Testing
+To test the API, follow these steps:
+1. Ensure the FastAPI server is running:
+    ```sh
+    uvicorn api:app --reload
+    ```
+2. Open your browser and navigate to:
+    ```
+    http://127.0.0.1:8000/docs
+    ```
+    This will open the Swagger UI where you can interact with the API endpoints.
+3. Use the provided endpoints to test the functionality:
+    - `POST /sync/customer` to sync customer data.
+    - `POST /sync/events` to sync events data.
+    - `GET /health` for a health check.
+4. To run automated tests (if any):
+    ```sh
+    pytest
+    ```
 
 ## Contributing
 Contributions are welcome! Please follow these steps to contribute:
