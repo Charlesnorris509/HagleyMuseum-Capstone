@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import os
 from dotenv import load_dotenv
+from loguru import logger
 
 load_dotenv()
 
@@ -12,7 +13,7 @@ class AltruAPIClient:
         self.base_url = "https://api.sky.blackbaud.com/altru/v1"
         self.subscription_key = os.getenv('BLACKBAUD_SUBSCRIPTION_KEY')
         self.access_token = None
-        
+
     def authenticate(self):
         """Authenticate with Blackbaud OAuth2"""
         auth_url = "https://oauth2.sky.blackbaud.com/token"
@@ -25,7 +26,9 @@ class AltruAPIClient:
         response = requests.post(auth_url, data=payload)
         if response.status_code == 200:
             self.access_token = response.json()['access_token']
+            logger.info("Authentication successful")
             return True
+        logger.error("Authentication failed: {}", response.text)
         return False
 
     def get_headers(self) -> Dict:
@@ -43,7 +46,11 @@ class AltruAPIClient:
             f"{self.base_url}{endpoint}",
             headers=self.get_headers()
         )
-        return response.json() if response.status_code == 200 else None
+        if response.status_code == 200:
+            logger.info("Fetched constituent details for ID: {}", altru_id)
+            return response.json()
+        logger.error("Failed to fetch constituent details for ID: {}", altru_id)
+        return None
 
     def get_events(self, start_date: str, end_date: str) -> List[Dict]:
         """Get events from Altru"""
@@ -57,7 +64,11 @@ class AltruAPIClient:
             headers=self.get_headers(),
             params=params
         )
-        return response.json()['value'] if response.status_code == 200 else []
+        if response.status_code == 200:
+            logger.info("Fetched events from {} to {}", start_date, end_date)
+            return response.json()['value']
+        logger.error("Failed to fetch events from {} to {}", start_date, end_date)
+        return []
 
     def get_employee(self, employee_id: str) -> Dict:
         """Get employee details from Altru"""
@@ -66,4 +77,8 @@ class AltruAPIClient:
             f"{self.base_url}{endpoint}",
             headers=self.get_headers()
         )
-        return response.json() if response.status_code == 200 else None
+        if response.status_code == 200:
+            logger.info("Fetched employee details for ID: {}", employee_id)
+            return response.json()
+        logger.error("Failed to fetch employee details for ID: {}", employee_id)
+        return None
