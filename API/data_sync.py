@@ -6,6 +6,7 @@ from mysql.connector import Error
 import schedule
 import time
 from altru_client import AltruAPIClient
+from loguru import logger
 
 class DataSyncService:
     def __init__(self):
@@ -22,13 +23,15 @@ class DataSyncService:
         try:
             return mysql.connector.connect(**self.db_config)
         except Error as e:
-            print(f"Error connecting to database: {e}")
+            logger.error("Error connecting to database: {}", e)
             return None
 
     def sync_customer(self, altru_id: str) -> bool:
         """Sync customer data from Altru to local database"""
+        logger.info("Starting customer sync for Altru ID: {}", altru_id)
         constituent = self.altru_client.get_constituent(altru_id)
         if not constituent:
+            logger.error("Failed to fetch constituent data for Altru ID: {}", altru_id)
             return False
 
         conn = self.connect_db()
@@ -65,10 +68,11 @@ class DataSyncService:
             
             cursor.execute(query, data)
             conn.commit()
+            logger.info("Successfully synced customer data for Altru ID: {}", altru_id)
             return True
 
         except Error as e:
-            print(f"Error syncing customer: {e}")
+            logger.error("Error syncing customer: {}", e)
             return False
         finally:
             if conn.is_connected():
@@ -77,8 +81,10 @@ class DataSyncService:
 
     def sync_events(self, start_date: str, end_date: str) -> bool:
         """Sync events data from Altru to local database"""
+        logger.info("Starting events sync from {} to {}", start_date, end_date)
         events = self.altru_client.get_events(start_date, end_date)
         if not events:
+            logger.error("Failed to fetch events data from {} to {}", start_date, end_date)
             return False
 
         conn = self.connect_db()
@@ -106,10 +112,11 @@ class DataSyncService:
                 cursor.execute(query, data)
             
             conn.commit()
+            logger.info("Successfully synced events data from {} to {}", start_date, end_date)
             return True
 
         except Error as e:
-            print(f"Error syncing events: {e}")
+            logger.error("Error syncing events: {}", e)
             return False
         finally:
             if conn.is_connected():
@@ -122,7 +129,7 @@ def daily_sync():
     today = datetime.now().strftime('%Y-%m-%d')
     tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
     
-    print(f"Syncing customers and events for {today}")
+    logger.info("Performing daily sync for {}", today)
     # Example: Syncing a customer with a specific Altru ID
     altru_id = "example_altru_id"
     service.sync_customer(altru_id)
@@ -133,7 +140,7 @@ def daily_sync():
 # Schedule the sync job to run every 24 hours
 schedule.every(24).hours.do(daily_sync)
 
-print("Starting daily sync service...")
+logger.info("Starting daily sync service...")
 while True:
     schedule.run_pending()
     time.sleep(1)
