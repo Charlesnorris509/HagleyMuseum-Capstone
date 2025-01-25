@@ -123,6 +123,122 @@ class DataSyncService:
                 cursor.close()
                 conn.close()
 
+     def sync_wristbands(self, start_date: str, end_date: str) -> bool:
+        """
+        Fetch wristband (ticket) data from Altru within a specified date range 
+        and store it in the Wristbands table.
+        """
+        logger.info("Starting wristbands sync from {} to {}", start_date, end_date)
+        tickets_data = self.altru_client.get_tickets(start_date, end_date)
+        if not tickets_data:
+            logger.error("No wristband or ticket data returned from {} to {}", start_date, end_date)
+            return False
+
+        conn = self.connect_db()
+        if not conn:
+            return False
+
+        try:
+            cursor = conn.cursor()
+            
+            # Example schema-based query for the Wristbands table
+            # Make sure to match columns with your actual data
+            query = """
+                INSERT INTO Wristbands (Event_ID, Issued)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE
+                Issued = VALUES(Issued)
+            """
+            
+            for ticket in tickets_data:
+                # Adjust 'event_id' or 'issued_at' to match your Altru response fields
+                data = (
+                    ticket.get('event_id'),
+                    ticket.get('issued_at')
+                )
+                cursor.execute(query, data)
+
+            conn.commit()
+            logger.info("Successfully synced wristband data from {} to {}", start_date, end_date)
+            return True
+        
+        except Error as e:
+            logger.error("Error syncing wristbands: {}", e)
+            return False
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
+    def sync_parking_passes(self, start_date: str, end_date: str) -> bool:
+        """
+        Fetch parking pass data from Altru within a specified date range
+        and store it in the ParkingPasses table, and optionally PassTypes.
+        """
+        logger.info("Starting parking passes sync from {} to {}", start_date, end_date)
+        passes_data = self.altru_client.get_parking_passes(start_date, end_date)
+        if not passes_data:
+            logger.error("No parking pass data returned from {} to {}", start_date, end_date)
+            return False
+
+        conn = self.connect_db()
+        if not conn:
+            return False
+
+        try:
+            cursor = conn.cursor()
+            
+            # Insert parking pass record
+            pass_query = """
+                INSERT INTO ParkingPasses (Event_ID, Issued)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE
+                Issued = VALUES(Issued)
+            """
+            
+            # Optionally store pass details in PassTypes
+            pass_type_query = """
+                INSERT INTO PassTypes (PP_id, PassType, Cost)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                PassType = VALUES(PassType), Cost = VALUES(Cost)
+            """
+
+            for ppass in passes_data:
+                # Adjust 'event_id' or 'issued_at' to your Altru fields
+                # Insert into ParkingPasses
+                parking_data = (
+                    ppass.get('event_id'),
+                    ppass.get('issued_at')
+                )
+                cursor.execute(pass_query, parking_data)
+                # Retrieve the newly inserted or existing ParkingPass ID
+                parking_pass_id = cursor.lastrowid if cursor.lastrowid != 0 else self.get_existing_pass_id(cursor)
+
+                # Insert into PassTypes (optional, only if your pass data includes these fields)
+                # For example, if your JSON has pass_type and cost
+                if ppass.get('pass_type'):
+                    pass_type_data = (
+                        parking_pass_id,
+                        ppass.get('pass_type'),
+                        ppass.get('cost', 0.00)
+                    )
+                    cursor.execute(pass_type_query, pass_type_data)
+
+            conn.commit()
+            logger.info("Successfully synced parking passes from {} to {}", start_date, end_date)
+            return True
+        
+        except Error as e:
+            logger.error("Error syncing parking passes: {}", e)
+            return False
+        finally:
+            if conn.is_connected():
+                cursor.close()
+                conn.close()
+
+
+
 def daily_sync():
     """Function to perform daily synchronization"""
     service = DataSyncService()
