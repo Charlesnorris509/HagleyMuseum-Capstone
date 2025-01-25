@@ -40,8 +40,28 @@ async def sync_events(event_sync: EventSync):
     logger.info("Successfully synced events from {} to {}", event_sync.start_date, event_sync.end_date)
     return {"status": "success", "message": "Events synced successfully"}
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    logger.info("Health check endpoint called")
-    return {"status": "healthy"}
+@app.post("/sync/wristbands")
+async def sync_wristbands(sync_range: SyncRange):
+    """
+    Endpoint to sync wristband/ticket data from Altru
+    """
+    logger.info("Received request to sync wristbands from {} to {}", sync_range.start_date, sync_range.end_date)
+    success = sync_service.sync_wristbands(sync_range.start_date, sync_range.end_date)
+    if not success:
+        logger.error("Failed to sync wristbands from {} to {}", sync_range.start_date, sync_range.end_date)
+        raise HTTPException(status_code=400, detail="Failed to sync wristbands")
+    logger.info("Successfully synced wristbands from {} to {}", sync_range.start_date, sync_range.end_date)
+    return {"status": "success", "message": "Wristbands synced successfully"}
+
+@app.post("/sync/parkingpasses")
+async def sync_parking_passes(sync_range: SyncRange):
+    """
+    Endpoint to sync parking passes from Altru
+    """
+    logger.info("Received request to sync parking passes from {} to {}", sync_range.start_date, sync_range.end_date)
+    success = sync_service.sync_parking_passes(sync_range.start_date, sync_range.end_date)
+    if not success:
+        logger.error("Failed to sync parking passes from {} to {}", sync_range.start_date, sync_range.end_date)
+        raise HTTPException(status_code=400, detail="Failed to sync parking passes")
+    logger.info("Successfully synced parking passes from {} to {}", sync_range.start_date, sync_range.end_date)
+    return {"status": "success", "message": "Parking passes synced successfully"}
