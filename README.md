@@ -29,7 +29,10 @@ To install this project, follow these steps:
 
 ## Usage
 To use this project, follow these steps:
-1. [Explain how to run your project]
+  ```curl -X POST "http://127.0.0.1:8000/sync/wristbands" \
+-H "Content-Type: application/json" \
+-d '{"start_date":"2025-01-01","end_date":"2025-01-31"}'
+    ```
 
 ## Features
 - Feature 1: Audit Trail And Logs
