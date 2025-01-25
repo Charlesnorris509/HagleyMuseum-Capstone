@@ -82,3 +82,47 @@ class AltruAPIClient:
             return response.json()
         logger.error("Failed to fetch employee details for ID: {}", employee_id)
         return None
+
+    def get_tickets(self, start_date: str, end_date: str) -> List[Dict]:
+        """
+        Fetch a list of ticket or wristband sales from Altru within a date range.
+        Adjust the endpoint and parameters as needed for your Altru environment.
+        """
+        endpoint = "/path/to/tickets/or/passes"
+        params = {
+            'start_date': start_date,
+            'end_date': end_date
+        }
+        
+        response = requests.get(
+            f"{self.base_url}{endpoint}",
+            headers=self.get_headers(),
+            params=params
+        )
+        if response.status_code == 200:
+            logger.info("Fetched ticket/wristband data for {} to {}", start_date, end_date)
+            return response.json().get('value', [])
+        logger.error("Failed to fetch ticket/wristband data: {}", response.text)
+        return []
+
+    def get_parking_passes(self, start_date: str, end_date: str) -> List[Dict]:
+        """
+        Fetch a list of parking passes from Altru within a date range.
+        Adjust endpoint and parameters to match your Altru configuration.
+        """
+        endpoint = "/path/to/parkingpasses"
+        params = {
+            'start_date': start_date,
+            'end_date': end_date
+        }
+        
+        response = requests.get(
+            f"{self.base_url}{endpoint}",
+            headers=self.get_headers(),
+            params=params
+        )
+        if response.status_code == 200:
+            logger.info("Fetched parking pass data for {} to {}", start_date, end_date)
+            return response.json().get('value', [])
+        logger.error("Failed to fetch parking pass data: {}", response.text)
+        return []
