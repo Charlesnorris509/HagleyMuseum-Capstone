@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException
-from typing import List
 from pydantic import BaseModel
 from datetime import datetime
 from data_sync import DataSyncService
@@ -12,6 +11,10 @@ class CustomerSync(BaseModel):
     altru_id: str
 
 class EventSync(BaseModel):
+    start_date: str
+    end_date: str
+
+class SyncRange(BaseModel):
     start_date: str
     end_date: str
 
@@ -30,10 +33,7 @@ async def sync_customer(customer: CustomerSync):
 async def sync_events(event_sync: EventSync):
     """Endpoint to sync events data from Altru"""
     logger.info("Received request to sync events from {} to {}", event_sync.start_date, event_sync.end_date)
-    success = sync_service.sync_events(
-        event_sync.start_date,
-        event_sync.end_date
-    )
+    success = sync_service.sync_events(event_sync.start_date, event_sync.end_date)
     if not success:
         logger.error("Failed to sync events from {} to {}", event_sync.start_date, event_sync.end_date)
         raise HTTPException(status_code=400, detail="Failed to sync events")
@@ -42,9 +42,7 @@ async def sync_events(event_sync: EventSync):
 
 @app.post("/sync/wristbands")
 async def sync_wristbands(sync_range: SyncRange):
-    """
-    Endpoint to sync wristband/ticket data from Altru
-    """
+    """Endpoint to sync wristband/ticket data from Altru"""
     logger.info("Received request to sync wristbands from {} to {}", sync_range.start_date, sync_range.end_date)
     success = sync_service.sync_wristbands(sync_range.start_date, sync_range.end_date)
     if not success:
@@ -55,9 +53,7 @@ async def sync_wristbands(sync_range: SyncRange):
 
 @app.post("/sync/parkingpasses")
 async def sync_parking_passes(sync_range: SyncRange):
-    """
-    Endpoint to sync parking passes from Altru
-    """
+    """Endpoint to sync parking passes from Altru"""
     logger.info("Received request to sync parking passes from {} to {}", sync_range.start_date, sync_range.end_date)
     success = sync_service.sync_parking_passes(sync_range.start_date, sync_range.end_date)
     if not success:
