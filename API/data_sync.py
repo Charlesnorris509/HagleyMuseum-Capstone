@@ -1,10 +1,9 @@
+# data_sync.py
 from typing import Dict, List
 from datetime import datetime, timedelta
 import os
 import mysql.connector
 from mysql.connector import Error
-import schedule
-import time
 from altru_client import AltruAPIClient
 from loguru import logger
 
@@ -123,7 +122,7 @@ class DataSyncService:
                 cursor.close()
                 conn.close()
 
-     def sync_wristbands(self, start_date: str, end_date: str) -> bool:
+    def sync_wristbands(self, start_date: str, end_date: str) -> bool:
         """
         Fetch wristband (ticket) data from Altru within a specified date range 
         and store it in the Wristbands table.
@@ -141,8 +140,6 @@ class DataSyncService:
         try:
             cursor = conn.cursor()
             
-            # Example schema-based query for the Wristbands table
-            # Make sure to match columns with your actual data
             query = """
                 INSERT INTO Wristbands (Event_ID, Issued)
                 VALUES (%s, %s)
@@ -151,7 +148,6 @@ class DataSyncService:
             """
             
             for ticket in tickets_data:
-                # Adjust 'event_id' or 'issued_at' to match your Altru response fields
                 data = (
                     ticket.get('event_id'),
                     ticket.get('issued_at')
@@ -188,7 +184,6 @@ class DataSyncService:
         try:
             cursor = conn.cursor()
             
-            # Insert parking pass record
             pass_query = """
                 INSERT INTO ParkingPasses (Event_ID, Issued)
                 VALUES (%s, %s)
@@ -196,7 +191,6 @@ class DataSyncService:
                 Issued = VALUES(Issued)
             """
             
-            # Optionally store pass details in PassTypes
             pass_type_query = """
                 INSERT INTO PassTypes (PP_id, PassType, Cost)
                 VALUES (%s, %s, %s)
@@ -205,18 +199,13 @@ class DataSyncService:
             """
 
             for ppass in passes_data:
-                # Adjust 'event_id' or 'issued_at' to your Altru fields
-                # Insert into ParkingPasses
                 parking_data = (
                     ppass.get('event_id'),
                     ppass.get('issued_at')
                 )
                 cursor.execute(pass_query, parking_data)
-                # Retrieve the newly inserted or existing ParkingPass ID
                 parking_pass_id = cursor.lastrowid if cursor.lastrowid != 0 else self.get_existing_pass_id(cursor)
 
-                # Insert into PassTypes (optional, only if your pass data includes these fields)
-                # For example, if your JSON has pass_type and cost
                 if ppass.get('pass_type'):
                     pass_type_data = (
                         parking_pass_id,
@@ -237,7 +226,11 @@ class DataSyncService:
                 cursor.close()
                 conn.close()
 
-
+    def get_existing_pass_id(self, cursor):
+        """Retrieve the existing ParkingPass ID if it exists"""
+        cursor.execute("SELECT LAST_INSERT_ID()")
+        result = cursor.fetchone()
+        return result[0] if result else None
 
 def daily_sync():
     """Function to perform daily synchronization"""
@@ -246,14 +239,16 @@ def daily_sync():
     tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
     
     logger.info("Performing daily sync for {}", today)
-    # Example: Syncing a customer with a specific Altru ID
     altru_id = "example_altru_id"
     service.sync_customer(altru_id)
-    
-    # Syncing events for today and tomorrow
     service.sync_events(today, tomorrow)
+    service.sync_wristbands(today, tomorrow)
+    service.sync_parking_passes(today, tomorrow)
 
 # Schedule the sync job to run every 24 hours
+import schedule
+import time
+
 schedule.every(24).hours.do(daily_sync)
 
 logger.info("Starting daily sync service...")
