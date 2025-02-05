@@ -1,4 +1,3 @@
-# data_sync.py
 from typing import Dict, List
 from datetime import datetime, timedelta
 import os
@@ -16,6 +15,11 @@ class DataSyncService:
             'password': os.getenv('DB_PASSWORD'),
             'database': os.getenv('DB_NAME')
         }
+
+        # Check if all database configuration values are set
+        if not all(self.db_config.values()):
+            logger.error("Database configuration is incomplete. Please check environment variables.")
+            raise ValueError("Database configuration is incomplete. Please check environment variables.")
 
     def connect_db(self):
         """Create database connection"""
