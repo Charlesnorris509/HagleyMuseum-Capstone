@@ -13,6 +13,11 @@ class AltruAPIClient:
         self.subscription_key = os.getenv('BLACKBAUD_SUBSCRIPTION_KEY')
         self.access_token = None
 
+        # Check if the subscription key is set
+        if not self.subscription_key:
+            logger.error("BLACKBAUD_SUBSCRIPTION_KEY is not set in the environment variables.")
+            raise ValueError("BLACKBAUD_SUBSCRIPTION_KEY is not set in the environment variables.")
+
     def authenticate(self):
         """Authenticate with Blackbaud OAuth2"""
         auth_url = "https://oauth2.sky.blackbaud.com/token"
@@ -21,10 +26,15 @@ class AltruAPIClient:
             'client_id': os.getenv('BLACKBAUD_CLIENT_ID'),
             'client_secret': os.getenv('BLACKBAUD_CLIENT_SECRET')
         }
-        
+
+        # Check if client_id and client_secret are set
+        if not payload['client_id'] or not payload['client_secret']:
+            logger.error("BLACKBAUD_CLIENT_ID or BLACKBAUD_CLIENT_SECRET is not set in the environment variables.")
+            raise ValueError("BLACKBAUD_CLIENT_ID or BLACKBAUD_CLIENT_SECRET is not set in the environment variables.")
+
         response = requests.post(auth_url, data=payload)
         if response.status_code == 200:
-            self.access_token = response.json()['access_token']
+            self.access_token = response.json().get('access_token')
             logger.info("Authentication successful")
             return True
         logger.error("Authentication failed: {}", response.text)
@@ -32,6 +42,10 @@ class AltruAPIClient:
 
     def get_headers(self) -> Dict:
         """Get headers for API requests"""
+        # Ensure access token is set before generating headers
+        if not self.access_token:
+            logger.error("Access token is not set. Please authenticate first.")
+            raise ValueError("Access token is not set. Please authenticate first.")
         return {
             'Bb-Api-Subscription-Key': self.subscription_key,
             'Authorization': f'Bearer {self.access_token}',
@@ -94,4 +108,13 @@ class AltruAPIClient:
             'start_date': start_date,
             'end_date': end_date
         }
-        response = requests
+        response = requests.get(
+            f"{self.base_url}{endpoint}",
+            headers=self.get_headers(),
+            params=params
+        )
+        if response.status_code == 200:
+            logger.info("Fetched parking passes from {} to {}", start_date, end_date)
+            return response.json().get('value', [])
+        logger.error("Failed to fetch parking passes: {}", response.text)
+        return []
