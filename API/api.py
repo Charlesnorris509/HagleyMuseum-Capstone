@@ -5,7 +5,11 @@ from data_sync import DataSyncService
 from loguru import logger
 
 app = FastAPI()
-sync_service = DataSyncService()
+
+@app.on_event("startup")
+async def startup_event():
+    global sync_service
+    sync_service = DataSyncService()  # Initialize the sync service at startup
 
 class CustomerSync(BaseModel):
     altru_id: str
