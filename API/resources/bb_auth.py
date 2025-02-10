@@ -10,7 +10,7 @@ config.read(config_file_name)
 @route('/')
 def index():
     print_string = f'''
-        Welcome to the Blackbaud SKY API Authorization Code Generator!
+        Welcome to the Blackbaud SKY API Connector!
         <br><br>
         Please go to this URL: <a href="https://oauth2.sky.blackbaud.com/authorization?client_id={config['app_secrets']['app_id']}&response_type=code&redirect_uri={config['other']['redirect_uri']}">https://oauth2.sky.blackbaud.com/authorization?client_id={config['app_secrets']['app_id']}&response_type=code&redirect_uri={config['other']['redirect_uri']}</a>
     '''
