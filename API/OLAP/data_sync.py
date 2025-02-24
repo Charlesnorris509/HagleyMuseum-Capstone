@@ -28,6 +28,7 @@ class DataSyncService:
         except Error as e:
             logger.error("Error connecting to database: {}", e)
             return None
+
     def sync_customer(self, altru_id: str) -> bool:
         """Sync customer data from Altru to local database"""
         logger.info("Starting customer sync for Altru ID: {}", altru_id)
