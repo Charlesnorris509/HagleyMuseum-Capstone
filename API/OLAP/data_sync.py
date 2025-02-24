@@ -8,7 +8,7 @@ from loguru import logger
 
 class DataSyncService:
     def __init__(self):
-        self.bb_api_connector = BbApiConnector(config_file_name='secret.json')
+        self.bb_api_connector = BbApiConnector(config_file_name='../secret.json')
         self.db_config = {
             'host': os.getenv('DB_HOST'),
             'user': os.getenv('DB_USER'),
