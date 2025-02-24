@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 import os
 import mysql.connector
 from mysql.connector import Error
-from altru_client import AltruAPIClient
+from BbApiConnector import BbApiConnector
 from loguru import logger
 
 class DataSyncService:
     def __init__(self):
-        self.altru_client = AltruAPIClient()
+        self.bb_api_connector = BbApiConnector(config_file_name='path/to/config.json')
         self.db_config = {
             'host': os.getenv('DB_HOST'),
             'user': os.getenv('DB_USER'),
@@ -28,7 +28,6 @@ class DataSyncService:
         except Error as e:
             logger.error("Error connecting to database: {}", e)
             return None
-
     def sync_customer(self, altru_id: str) -> bool:
         """Sync customer data from Altru to local database"""
         logger.info("Starting customer sync for Altru ID: {}", altru_id)
