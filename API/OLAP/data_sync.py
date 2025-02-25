@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import os
 import mysql.connector
@@ -8,7 +8,7 @@ from loguru import logger
 
 class DataSyncService:
     def __init__(self):
-        self.bb_api_connector = BbApiConnector(config_file_name='../secret.json')
+        self.bb_api_connector = BbApiConnector(config_file_name='path/to/config.json')
         self.db_config = {
             'host': os.getenv('DB_HOST'),
             'user': os.getenv('DB_USER'),
@@ -32,7 +32,7 @@ class DataSyncService:
     def sync_customer(self, altru_id: str) -> bool:
         """Sync customer data from Altru to local database"""
         logger.info("Starting customer sync for Altru ID: {}", altru_id)
-        constituent = self.altru_client.get_constituent(altru_id)
+        constituent = self.bb_api_connector.get_constituent(altru_id)
         if not constituent:
             logger.error("Failed to fetch constituent data for Altru ID: {}", altru_id)
             return False
@@ -44,17 +44,17 @@ class DataSyncService:
         try:
             cursor = conn.cursor()
             query = """
-                INSERT INTO Customers 
-                (Member_id, Fname, Lname, Phone, Email, Address1, Address2, 
-                 City, State, Zip, Altru_id)
+                INSERT INTO Customers
+                (Member_id, Fname, Lname, Phone, Email, Address1, Address2,
+                City, State, Zip, Altru_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                 Fname=VALUES(Fname), Lname=VALUES(Lname), Phone=VALUES(Phone),
-                Email=VALUES(Email), Address1=VALUES(Address1), 
+                Email=VALUES(Email), Address1=VALUES(Address1),
                 Address2=VALUES(Address2), City=VALUES(City), State=VALUES(State),
                 Zip=VALUES(Zip)
             """
-            
+
             data = (
                 constituent.get('member_id'),
                 constituent.get('first_name'),
@@ -68,7 +68,7 @@ class DataSyncService:
                 constituent.get('postal_code'),
                 altru_id
             )
-            
+
             cursor.execute(query, data)
             conn.commit()
             logger.info("Successfully synced customer data for Altru ID: {}", altru_id)
@@ -85,7 +85,7 @@ class DataSyncService:
     def sync_events(self, start_date: str, end_date: str) -> bool:
         """Sync events data from Altru to local database"""
         logger.info("Starting events sync from {} to {}", start_date, end_date)
-        events = self.altru_client.get_events(start_date, end_date)
+        events = self.bb_api_connector.get_events(start_date, end_date)
         if not events:
             logger.error("Failed to fetch events data from {} to {}", start_date, end_date)
             return False
@@ -105,15 +105,15 @@ class DataSyncService:
                     ON DUPLICATE KEY UPDATE
                     Name=VALUES(Name), EventDate=VALUES(EventDate)
                 """
-                
+
                 data = (
                     event.get('constituent_id'),
                     event.get('name'),
                     event.get('start_date')
                 )
-                
+
                 cursor.execute(query, data)
-            
+
             conn.commit()
             logger.info("Successfully synced events data from {} to {}", start_date, end_date)
             return True
@@ -132,7 +132,7 @@ class DataSyncService:
         and store it in the Wristbands table.
         """
         logger.info("Starting wristbands sync from {} to {}", start_date, end_date)
-        tickets_data = self.altru_client.get_tickets(start_date, end_date)
+        tickets_data = self.bb_api_connector.get_tickets(start_date, end_date)
         if not tickets_data:
             logger.error("No wristband or ticket data returned from {} to {}", start_date, end_date)
             return False
@@ -143,14 +143,14 @@ class DataSyncService:
 
         try:
             cursor = conn.cursor()
-            
+
             query = """
                 INSERT INTO Wristbands (Event_ID, Issued)
                 VALUES (%s, %s)
                 ON DUPLICATE KEY UPDATE
                 Issued = VALUES(Issued)
             """
-            
+
             for ticket in tickets_data:
                 data = (
                     ticket.get('event_id'),
@@ -161,7 +161,7 @@ class DataSyncService:
             conn.commit()
             logger.info("Successfully synced wristband data from {} to {}", start_date, end_date)
             return True
-        
+
         except Error as e:
             logger.error("Error syncing wristbands: {}", e)
             return False
@@ -176,7 +176,7 @@ class DataSyncService:
         and store it in the ParkingPasses table, and optionally PassTypes.
         """
         logger.info("Starting parking passes sync from {} to {}", start_date, end_date)
-        passes_data = self.altru_client.get_parking_passes(start_date, end_date)
+        passes_data = self.bb_api_connector.get_parking_passes(start_date, end_date)
         if not passes_data:
             logger.error("No parking pass data returned from {} to {}", start_date, end_date)
             return False
@@ -187,14 +187,14 @@ class DataSyncService:
 
         try:
             cursor = conn.cursor()
-            
+
             pass_query = """
                 INSERT INTO ParkingPasses (Event_ID, Issued)
                 VALUES (%s, %s)
                 ON DUPLICATE KEY UPDATE
                 Issued = VALUES(Issued)
             """
-            
+
             pass_type_query = """
                 INSERT INTO PassTypes (PP_id, PassType, Cost)
                 VALUES (%s, %s, %s)
@@ -221,7 +221,7 @@ class DataSyncService:
             conn.commit()
             logger.info("Successfully synced parking passes from {} to {}", start_date, end_date)
             return True
-        
+
         except Error as e:
             logger.error("Error syncing parking passes: {}", e)
             return False
@@ -236,12 +236,27 @@ class DataSyncService:
         result = cursor.fetchone()
         return result[0] if result else None
 
+    def sync_all_data(self, altru_id: str, start_date: str, end_date: Optional[str] = None):
+        """
+        Sync all data from Altru within the specified date range.
+        Uses today's date if no end_date is provided.
+        """
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+
+        logger.info("Starting full sync from {} to {}", start_date, end_date)
+        self.sync_customer(altru_id)
+        self.sync_events(start_date, end_date)
+        self.sync_wristbands(start_date, end_date)
+        self.sync_parking_passes(start_date, end_date)
+        logger.info("Finished full sync from {} to {}", start_date, end_date)
+
 def daily_sync():
     """Function to perform daily synchronization"""
     service = DataSyncService()
     today = datetime.now().strftime('%Y-%m-%d')
     tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-    
+
     logger.info("Performing daily sync for {}", today)
     altru_id = "example_altru_id"
     service.sync_customer(altru_id)
