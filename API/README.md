@@ -34,5 +34,5 @@ I found it helpful for me to split the functionality into two files: one for whe
 params = {
     'base_role_ids': '1'
 }
-req = bb_session.get("https://api.sky.blackbaud.com/school/v1/users/extended", params=params)
+req = bb_session.get("https://api.sky.blackbaud.com/altru/v1/users/extended", params=params)
 ```
