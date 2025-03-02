@@ -13,6 +13,41 @@ class ParkingPassSyncService:
     def set_message_broker(self, message_broker):
         """Set a message broker for event-driven sync"""
         self.message_broker = message_broker
+        
+    def get_pass_type_limits(self):
+        """Get the limits for each pass type from the database"""
+        # This could be stored in a configuration table or hardcoded based on business rules
+        return {
+            'General': 800,
+            'Premium': 60,
+            'Catering': 30,
+            'Buck Road': 40
+        }
+
+    def check_pass_type_availability(self, event_id, pass_type):
+        """Check if there is still availability for a specific pass type"""
+        limits = self.get_pass_type_limits()
+        
+        if pass_type not in limits:
+            # If no limit defined for this pass type, assume it's available
+            return True
+            
+        # Count how many passes of this type already exist for this event
+        query = """
+            SELECT COUNT(pt.PT_id) 
+            FROM PassTypes pt
+            JOIN ParkingPasses pp ON pt.PP_id = pp.PP_id
+            WHERE pp.Event_ID = %s AND pt.PassTypes = %s
+        """
+        
+        data = (event_id, pass_type)
+        result = self.db_service.execute_query(query, data, fetch=True)
+        
+        if not result or not result[0]:
+            return True
+            
+        current_count = result[0][0]
+        return current_count < limits[pass_type]
 
     def sync_parking_passes(self, start_date: str, end_date: str) -> bool:
         """
@@ -40,9 +75,31 @@ class ParkingPassSyncService:
 
         success_count = 0
         failed_count = 0
+        limit_reached_count = 0
 
         # Process each parking pass
         for ppass in passes_data:
+            event_id = ppass.get('event_id')
+            pass_type = ppass.get('pass_type')
+            
+            # Check if we've reached the limit for this pass type
+            if pass_type and not self.check_pass_type_availability(event_id, pass_type):
+                logger.warning("Limit reached for pass type {} for event ID {}", pass_type, event_id)
+                limit_reached_count += 1
+                
+                # Notify about limit reached if message broker is available
+                if self.message_broker:
+                    self.message_broker.publish_message(
+                        'parking_pass_sync_events', 
+                        {
+                            'event': 'parking_pass_limit_reached',
+                            'event_id': event_id,
+                            'pass_type': pass_type,
+                            'status': 'limit_reached'
+                        }
+                    )
+                continue
+                
             # First insert the parking pass
             pass_query = """
                 INSERT INTO ParkingPasses (Event_ID, Issued)
@@ -52,7 +109,7 @@ class ParkingPassSyncService:
             """
 
             parking_data = (
-                ppass.get('event_id'),
+                event_id,
                 ppass.get('issued_at')
             )
             
@@ -68,14 +125,22 @@ class ParkingPassSyncService:
                         'parking_pass_sync_events', 
                         {
                             'event': 'parking_pass_sync_failed',
-                            'event_id': ppass.get('event_id'),
+                            'event_id': event_id,
                             'status': 'failed'
                         }
                     )
                 continue
                 
+            # If this was an ON DUPLICATE KEY UPDATE, we need to get the actual PP_id
+            if isinstance(pass_id, int) and pass_id <= 0:
+                pass_id = self.db_service.get_existing_pass_id(event_id)
+                if not pass_id:
+                    logger.error("Failed to retrieve existing parking pass ID for event ID: {}", event_id)
+                    failed_count += 1
+                    continue
+                
             # If the parking pass has a type, insert it into the PassTypes table
-            if ppass.get('pass_type'):
+            if pass_type:
                 pass_type_query = """
                     INSERT INTO PassTypes (PP_id, PassTypes, Cost)
                     VALUES (%s, %s, %s)
@@ -85,7 +150,7 @@ class ParkingPassSyncService:
 
                 pass_type_data = (
                     pass_id,
-                    ppass.get('pass_type'),
+                    pass_type,
                     ppass.get('cost', 0.00)
                 )
                 
@@ -103,7 +168,7 @@ class ParkingPassSyncService:
                             {
                                 'event': 'parking_pass_type_sync_failed',
                                 'parking_pass_id': pass_id,
-                                'event_id': ppass.get('event_id'),
+                                'event_id': event_id,
                                 'status': 'partial_failure'
                             }
                         )
@@ -122,14 +187,17 @@ class ParkingPassSyncService:
                     {
                         'event': 'parking_pass_synced',
                         'parking_pass_id': pass_id,
-                        'event_id': ppass.get('event_id'),
+                        'event_id': event_id,
                         'status': 'success',
-                        'pass_type': ppass.get('pass_type')
+                        'pass_type': pass_type
                     }
                 )
 
-        total = success_count + failed_count
-        logger.info("Synced {}/{} parking passes from {} to {}", success_count, total, start_date, end_date)
+        total = success_count + failed_count + limit_reached_count
+        logger.info(
+            "Synced {}/{} parking passes from {} to {} (Failed: {}, Limit reached: {})", 
+            success_count, total, start_date, end_date, failed_count, limit_reached_count
+        )
         
         # Publish summary event if message broker is available
         if self.message_broker:
@@ -141,6 +209,7 @@ class ParkingPassSyncService:
                     'end_date': end_date,
                     'success_count': success_count,
                     'failed_count': failed_count,
+                    'limit_reached_count': limit_reached_count,
                     'total': total,
                     'status': 'success' if failed_count == 0 else 'partial_failure'
                 }

@@ -24,21 +24,38 @@ class CustomerSyncService:
             logger.error("Failed to fetch constituent data for Altru ID: {}", altru_id)
             return False
 
-        # Prepare query and data
+        # Prepare query and data - now including MembershipLevel, Attended, Paid, Cancelled fields
         query = """
             INSERT INTO Customers
-            (Member_id, Fname, Lname, Phone, Email, Address1, Address2,
-            City, State, Zip, Altru_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (Member_id, MembershipLevel, Fname, Lname, Phone, Email, Address1, Address2,
+            City, State, Zip, Attended, Paid, Cancelled, Altru_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
+            MembershipLevel=VALUES(MembershipLevel),
             Fname=VALUES(Fname), Lname=VALUES(Lname), Phone=VALUES(Phone),
             Email=VALUES(Email), Address1=VALUES(Address1),
             Address2=VALUES(Address2), City=VALUES(City), State=VALUES(State),
-            Zip=VALUES(Zip)
+            Zip=VALUES(Zip), Attended=VALUES(Attended), Paid=VALUES(Paid), 
+            Cancelled=VALUES(Cancelled)
         """
+
+        # Extract membership level from constituent data if available
+        membership_level = constituent.get('membership', {}).get('level', None)
+        
+        # Extract attendance and payment status from constituent data if available
+        # Default values: Attended=NULL, Paid=NULL, Cancelled=NULL
+        attended = constituent.get('attended', None)  
+        paid = constituent.get('payment_status', {}).get('is_paid', None)
+        cancelled = constituent.get('status', '') == 'Cancelled'
+        
+        # Convert boolean values to 0/1 for MySQL TINYINT
+        attended = 1 if attended else (0 if attended is False else None)
+        paid = 1 if paid else (0 if paid is False else None)
+        cancelled = 1 if cancelled else 0
 
         data = (
             constituent.get('member_id'),
+            membership_level,
             constituent.get('first_name'),
             constituent.get('last_name'),
             constituent.get('phone'),
@@ -48,6 +65,9 @@ class CustomerSyncService:
             constituent.get('city'),
             constituent.get('state'),
             constituent.get('postal_code'),
+            attended,
+            paid,
+            cancelled,
             altru_id
         )
 

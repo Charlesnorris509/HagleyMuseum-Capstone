@@ -29,17 +29,52 @@ class EventSyncService:
 
         # Insert each event
         for event in events:
+            # Check if event has an employee/coordinator assigned
+            employee_id = None
+            coordinator = event.get('coordinator', {})
+            if coordinator:
+                # Try to look up the employee in the database first
+                employee_query = """
+                    SELECT E_id FROM Employees 
+                    WHERE Email = %s OR (Fname = %s AND Lname = %s)
+                    LIMIT 1
+                """
+                employee_data = (
+                    coordinator.get('email'),
+                    coordinator.get('first_name'),
+                    coordinator.get('last_name')
+                )
+                employee_result = self.db_service.execute_query(employee_query, employee_data, fetch=True)
+                
+                if employee_result and len(employee_result) > 0:
+                    employee_id = employee_result[0][0]
+                else:
+                    # Insert the employee if they don't exist
+                    insert_employee_query = """
+                        INSERT INTO Employees (Fname, Lname, Phone, Email)
+                        VALUES (%s, %s, %s, %s)
+                    """
+                    insert_employee_data = (
+                        coordinator.get('first_name'),
+                        coordinator.get('last_name'),
+                        coordinator.get('phone'),
+                        coordinator.get('email')
+                    )
+                    employee_id = self.db_service.execute_query(insert_employee_query, insert_employee_data)
+            
+            # Now insert the event with the employee reference if available
             query = """
-                INSERT INTO Events (C_id, Name, EventDate)
+                INSERT INTO Events (C_id, E_id, Name, EventDate)
                 VALUES (
                     (SELECT C_id FROM Customers WHERE Altru_id = %s),
-                    %s, %s)
+                    %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                Name=VALUES(Name), EventDate=VALUES(EventDate)
+                E_id=VALUES(E_id), Name=VALUES(Name), EventDate=VALUES(EventDate)
             """
 
             data = (
                 event.get('constituent_id'),
+                employee_id,  # Will be None if no employee/coordinator is found or created
                 event.get('name'),
                 event.get('start_date')
             )
